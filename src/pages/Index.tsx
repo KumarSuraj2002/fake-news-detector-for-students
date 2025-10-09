@@ -100,8 +100,20 @@ const Index = () => {
         determination = "fake";
       }
       
-      // Generate summary
-      const summary = text.slice(0, 200) + (text.length > 200 ? '...' : '');
+      // Generate a more intelligent summary based on the analysis
+      const wordCount = text.split(' ').length;
+      const avgWordLength = text.replace(/\s/g, '').length / wordCount;
+      const summary = `This ${wordCount}-word article ${
+        determination === 'credible' ? 'appears to be relatively credible' :
+        determination === 'questionable' ? 'raises some credibility concerns' :
+        'shows significant credibility issues'
+      }. Sentiment: ${sentiment.label}. ${
+        hasSources ? 'Contains source references.' : 'Lacks clear citations.'
+      } ${
+        redFlags.length > 2 ? 'Multiple red flags detected.' : 
+        redFlags.length > 0 ? 'Some concerns identified.' : 
+        'No major red flags found.'
+      }`;
       
       // Generate explanation
       let explanation = '**Analysis Results:**\n\n';
