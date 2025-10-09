@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { ArticleInput } from "@/components/ArticleInput";
 import { AnalysisResults } from "@/components/AnalysisResults";
 import { toast } from "sonner";
@@ -15,19 +15,26 @@ interface AnalysisResult {
 const Index = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
+  const classifierRef = useRef<any>(null);
+  const [modelLoaded, setModelLoaded] = useState(false);
 
   const handleAnalyze = async (text: string, url?: string) => {
     setIsLoading(true);
     setResult(null);
 
     try {
-      toast.info('Loading AI model... This may take a moment on first use.');
+      // Initialize model only once and cache it
+      if (!classifierRef.current) {
+        toast.info('Loading AI model... This will only happen once.');
+        classifierRef.current = await pipeline('sentiment-analysis', 'Xenova/distilbert-base-uncased-finetuned-sst-2-english');
+        setModelLoaded(true);
+        toast.success('Model loaded! Analysis will be faster now.');
+      } else {
+        toast.info('Analyzing article...');
+      }
       
-      // Initialize sentiment analysis pipeline
-      const classifier = await pipeline('sentiment-analysis', 'Xenova/distilbert-base-uncased-finetuned-sst-2-english');
-      
-      // Analyze the text
-      const sentimentResult: any = await classifier(text.slice(0, 512)); // Limit to 512 tokens
+      // Analyze the text using cached classifier
+      const sentimentResult: any = await classifierRef.current(text.slice(0, 512)); // Limit to 512 tokens
       const sentiment = Array.isArray(sentimentResult) ? sentimentResult[0] : sentimentResult;
       
       // Calculate credibility score based on various factors
