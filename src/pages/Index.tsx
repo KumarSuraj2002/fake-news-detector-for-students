@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { ArticleInput } from "@/components/ArticleInput";
 import { AnalysisResults } from "@/components/AnalysisResults";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { ShieldCheck, Sparkles, BookOpen } from "lucide-react";
+import { pipeline } from "@huggingface/transformers";
 
 interface AnalysisResult {
   credibilityScore: number;
@@ -21,22 +21,118 @@ const Index = () => {
     setResult(null);
 
     try {
-      const { data, error } = await supabase.functions.invoke('analyze-article', {
-        body: { articleText: text, articleUrl: url }
+      toast.info('Loading AI model... This may take a moment on first use.');
+      
+      // Initialize sentiment analysis pipeline
+      const classifier = await pipeline('sentiment-analysis', 'Xenova/distilbert-base-uncased-finetuned-sst-2-english');
+      
+      // Analyze the text
+      const sentimentResult: any = await classifier(text.slice(0, 512)); // Limit to 512 tokens
+      const sentiment = Array.isArray(sentimentResult) ? sentimentResult[0] : sentimentResult;
+      
+      // Calculate credibility score based on various factors
+      let credibilityScore = 50; // Start neutral
+      let redFlags: string[] = [];
+      let positiveIndicators: string[] = [];
+      
+      // Check for emotional/sensational language
+      if (sentiment.label === 'NEGATIVE' && sentiment.score > 0.9) {
+        credibilityScore -= 20;
+        redFlags.push('Highly emotional or negative language detected');
+      }
+      
+      // Check for all caps (sensationalism)
+      const capsRatio = (text.match(/[A-Z]/g) || []).length / text.length;
+      if (capsRatio > 0.3) {
+        credibilityScore -= 15;
+        redFlags.push('Excessive use of capital letters (sensationalism indicator)');
+      }
+      
+      // Check for exclamation marks (sensationalism)
+      const exclamationCount = (text.match(/!/g) || []).length;
+      if (exclamationCount > 5) {
+        credibilityScore -= 10;
+        redFlags.push('Excessive use of exclamation marks');
+      }
+      
+      // Check for source citations
+      const hasSources = /source:|according to|study|research|report/i.test(text);
+      if (hasSources) {
+        credibilityScore += 15;
+        positiveIndicators.push('Contains references to sources or research');
+      } else {
+        redFlags.push('No clear citations or source references found');
+      }
+      
+      // Check article length (too short might be unreliable)
+      if (text.length < 200) {
+        credibilityScore -= 10;
+        redFlags.push('Article is very short, may lack sufficient detail');
+      } else if (text.length > 500) {
+        credibilityScore += 10;
+        positiveIndicators.push('Substantial content with adequate detail');
+      }
+      
+      // Check for clickbait phrases
+      const clickbaitPhrases = /you won't believe|shocking|doctors hate|one weird trick|what happens next/i;
+      if (clickbaitPhrases.test(text)) {
+        credibilityScore -= 20;
+        redFlags.push('Contains clickbait-style language');
+      }
+      
+      // Ensure score is between 0 and 100
+      credibilityScore = Math.max(0, Math.min(100, credibilityScore));
+      
+      // Determine credibility level
+      let determination: "credible" | "questionable" | "fake";
+      if (credibilityScore >= 61) {
+        determination = "credible";
+      } else if (credibilityScore >= 31) {
+        determination = "questionable";
+      } else {
+        determination = "fake";
+      }
+      
+      // Generate summary
+      const summary = text.slice(0, 200) + (text.length > 200 ? '...' : '');
+      
+      // Generate explanation
+      let explanation = '**Analysis Results:**\n\n';
+      
+      if (redFlags.length > 0) {
+        explanation += '**Red Flags Detected:**\n';
+        redFlags.forEach(flag => {
+          explanation += `• ${flag}\n`;
+        });
+        explanation += '\n';
+      }
+      
+      if (positiveIndicators.length > 0) {
+        explanation += '**Positive Indicators:**\n';
+        positiveIndicators.forEach(indicator => {
+          explanation += `• ${indicator}\n`;
+        });
+        explanation += '\n';
+      }
+      
+      explanation += `**Sentiment Analysis:** ${sentiment.label} (${(sentiment.score * 100).toFixed(1)}% confidence)\n\n`;
+      explanation += '**Recommendation:** ';
+      
+      if (determination === 'credible') {
+        explanation += 'This article shows signs of credibility, but always verify with multiple sources.';
+      } else if (determination === 'questionable') {
+        explanation += 'Exercise caution. Cross-reference this information with trusted news sources.';
+      } else {
+        explanation += 'This article shows multiple red flags. Verify information before sharing or believing it.';
+      }
+
+      setResult({
+        credibilityScore,
+        determination,
+        summary,
+        explanation
       });
-
-      if (error) {
-        console.error('Analysis error:', error);
-        toast.error(error.message || 'Failed to analyze article');
-        return;
-      }
-
-      if (data.error) {
-        toast.error(data.error);
-        return;
-      }
-
-      setResult(data);
+      
       toast.success('Analysis complete!');
     } catch (error) {
       console.error('Error analyzing article:', error);
