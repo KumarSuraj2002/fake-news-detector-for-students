@@ -2,6 +2,9 @@
 
 ## Project info
 
+**live link** : https://fake-news-detector-for-students.netlify.app/
+
+
 **URL**: https://lovable.dev/projects/09a3d2ee-4d8b-4b5b-abc7-6a7b92be4793
 
 ## How can I edit this code?
