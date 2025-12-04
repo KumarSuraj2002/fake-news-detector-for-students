@@ -5,6 +5,10 @@
 **live link** : https://fake-news-detector-for-students.netlify.app/
 
 
+<img width="1576" height="911" alt="Screenshot 2025-12-04 115244" src="https://github.com/user-attachments/assets/2b641f49-1f4a-4581-ade4-759085d6e409" />
+
+
+
 ## How can I edit this code?
 
 There are several ways of editing your application.
